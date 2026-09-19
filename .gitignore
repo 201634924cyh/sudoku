@@ -1,0 +1,45 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 本项目的临时产物 ----
+# 以 "_" 开头的脚本/日志是开发期的临时文件（探针、跑批输出），不进仓库。
+_*.py
+_*.txt
+_*.log
+shot_*.png
+*.log
+*.tmp
+
+# ---- WorkBuddy 项目数据（编辑器侧的工作区记录，非源码）----
+.workbuddy/
+
+# ---- 编辑器 / IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 操作系统 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 打包产物 ----
+*.zip
+*.tar.gz
+*.7z
+*.rar
