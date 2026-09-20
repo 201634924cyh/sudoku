@@ -29,9 +29,11 @@ import sudoku as S  # noqa: E402
 
 SHOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview")
 FAILURES = []
+CHECKS = [0]              # 已执行的断言总数（成功也计），用于 README 徽章
 
 
 def check(cond, msg):
+    CHECKS[0] += 1
     if not cond:
         FAILURES.append(msg)
         print("  [FAIL] " + msg)
@@ -748,6 +750,9 @@ def main():
     except Exception:
         pass
     pygame.init()
+
+    # 重新初始化后旧 Font 已失效，必须清缓存（不清会在 render 时段错误）
+    S.reset_font_cache()
     try:
         pygame.mixer.init()
     except Exception:
@@ -782,18 +787,56 @@ def main():
     test_full_playthrough(game)
     test_render_and_perf(game)
 
+    # ------------------------------------------------------------------
+    note("中文字体字形校验（跨平台不出现豆腐块）")
+    bad_path = pygame.font.match_font("dejavusans,arial,liberationsans")
+    bad_font = None
+    if bad_path and os.path.exists(bad_path):
+        try:
+            bad_font = pygame.font.Font(bad_path, 24)
+        except Exception:
+            bad_font = None
+    check(bad_font is not None and not S.font_covers_cjk(bad_font),
+          "反面样本：本机取不到「名字沾边但没有汉字字形」的字体（path=%s）" % bad_path)
+    check(not S.font_covers_cjk(pygame.font.Font(None, 24)),
+          "探针：默认字体 Font(None) 应被判定为画不出汉字")
+
+    usable = None
+    for _p in S.FONT_CANDIDATES:
+        if not os.path.exists(_p):
+            continue
+        try:
+            _pf = pygame.font.Font(_p, 24)
+        except Exception:
+            continue
+        if S.font_covers_cjk(_pf):
+            usable = _p
+            break
+    if usable:
+        check(S.font_covers_cjk(S.get_font(24)),
+              "正向：系统装了中文字体时，get_font 选中的字体应能画出汉字（可用候选 %s）" % usable)
+    else:
+        note("本机没有任何候选中文字体，正向断言跳过")
+
+    if bad_font is not None:
+        _same, _src = S.font_regression(bad_path)
+        check(_same,
+              "反事实：候选全是无汉字字体时应退回默认字体，而不是拿来就用（实际采用 %s）" % _src)
+    else:
+        note("取不到无汉字反面样本，反事实断言跳过")
+
     if "--shots" in sys.argv:
         make_shots(game)
         scan_pure_background()
 
     print("=" * 66)
     if FAILURES:
-        print("HARNESS FAILED (%d)" % len(FAILURES))
+        print("HARNESS FAILED  %d / %d checks" % (len(FAILURES), CHECKS[0]))
         for m in FAILURES:
             print("   - " + m)
         pygame.quit()
         return 1
-    print("HARNESS PASSED   %.2fs" % (time.perf_counter() - t0))
+    print("HARNESS PASSED  %d checks  %.2fs" % (CHECKS[0], time.perf_counter() - t0))
     pygame.quit()
     return 0
 

@@ -5,7 +5,8 @@
 ![Language](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Dependency](https://img.shields.io/badge/dependency-pygame-2C8E4E)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Selftest](https://img.shields.io/badge/selftest-914%20passed-brightgreen)
+![Version](https://img.shields.io/badge/version-1.1-blue)
+![Selftest](https://img.shields.io/badge/selftest-918%20passed-brightgreen)
 
 ## 预览
 
@@ -16,6 +17,12 @@
 | 提示 | 通关 | 通关动画 |
 | :---: | :---: | :---: |
 | ![提示](preview/04_hint.png) | ![通关](preview/05_won.png) | ![波纹](preview/06_won_ripple.png) |
+
+## 跨平台中文字体
+
+界面中文在 Windows / macOS / Linux 上都能正常显示。程序按「平台常见字体路径 → fontconfig 族名 → SysFont」逐级探测，**每一级都做字形校验**（渲染几个不同汉字比对位图），只有真的画得出汉字才会采用。
+
+> 这一步不是多余的：pygame 的 `match_font` 会给出「名字沾边、其实没有汉字」的字体（实测 `dejavusans`、`arial` 都会命中 Arial Narrow），一旦采用，界面就会静默变成一屏方框。真的找不到中文字体时，程序会明确提示装字体（`sudo apt install fonts-noto-cjk`），而不是假装正常。自检里配了正反两条断言防止回归。
 
 ## 快速开始
 
@@ -32,7 +39,7 @@ cd sudoku
 | macOS / Linux | `sh run.sh` |
 | 任意平台手动 | `pip install -r requirements.txt` 然后 `python sudoku.py` |
 
-启动脚本会自己找 Python、缺 pygame 就自动装（走清华镜像），首次运行不会卡住。
+启动脚本会自己找 Python、缺 pygame 就自动装（走腾讯云镜像（失败自动回退官方源）），首次运行不会卡住。
 
 > 没有官方 pygame wheel 的 Python 版本（如 3.14）会自动改装 `pygame-ce` —— 社区分支，API 兼容，装完同样是 `import pygame`。
 

@@ -28,11 +28,17 @@ goto run
 
 :install_deps
 echo pygame is not installed, installing it now...
-%PYEXE% -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
+rem Try the Tencent Cloud mirror first, then fall back to the official PyPI.
+rem (pypi.tuna.tsinghua.edu.cn now answers 403 to recent pip versions.)
+%PYEXE% -m pip install --disable-pip-version-check -i https://mirrors.cloud.tencent.com/pypi/simple -r requirements.txt
+if not errorlevel 1 goto run
+%PYEXE% -m pip install --disable-pip-version-check -r requirements.txt
 if not errorlevel 1 goto run
 
 echo No official pygame wheel for this Python, trying pygame-ce...
-%PYEXE% -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pygame-ce
+%PYEXE% -m pip install --disable-pip-version-check -i https://mirrors.cloud.tencent.com/pypi/simple pygame-ce
+if not errorlevel 1 goto run
+%PYEXE% -m pip install --disable-pip-version-check pygame-ce
 if not errorlevel 1 goto run
 
 goto install_failed

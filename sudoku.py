@@ -28,6 +28,8 @@ import sys
 
 import pygame
 
+__version__ = "1.1"
+
 try:
     import numpy as _np
 except Exception:                                    # numpy 缺失 -> 降级静音
@@ -314,14 +316,48 @@ def fmt_time(t):
 
 
 _FONT_CACHE = {}
-_FONT_PATHS = (
+
+# 跨平台中文界面字体：按「候选路径 → fontconfig 族名 → SysFont」逐级探测，
+# 每一级都必须通过字形校验 —— 只有真的画得出汉字才会被采用。
+#
+# 为什么非要验字形：pygame 的 match_font 会给出「名字沾边、其实没有汉字」的
+# 字体（本机实测 dejavusans / arial / liberationsans 一律命中 Arial Narrow），
+# 一旦采用，界面中文就会静默变成一屏方框。
+# 旧版 Linux 只有一条 DroidSansFallbackFull.ttf 路径（属 fonts-droid-fallback
+# 包，主流发行版默认不装），装了 fonts-noto-cjk 也对不上 —— 必然落到
+# SysFont(None)，满屏方框。
+FONT_CANDIDATES = [
+    # Windows
     r"C:\Windows\Fonts\msyh.ttc",
     r"C:\Windows\Fonts\msyhbd.ttc",
     r"C:\Windows\Fonts\simhei.ttf",
+    r"C:\Windows\Fonts\Deng.ttf",
     r"C:\Windows\Fonts\simsun.ttc",
-    r"/System/Library/Fonts/PingFang.ttc",
+    # macOS
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/Library/Fonts/Arial Unicode.ttf",
+    # Linux（Debian/Ubuntu · Fedora · Arch 的常见安装位置）
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+    "/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/arphic/uming.ttc",
     "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-)
+]
+
+# 路径未必覆盖所有发行版，再交给 fontconfig 按族名找一遍。
+# 这里刻意不放 dejavusans / arial 这类没有汉字字形的通用族名。
+FONT_FAMILIES = ("notosanscjksc,notosanscjk,sourcehansanssc,wqyzenhei,wqymicrohei,"
+                 "microsoftyahei,microsoftyaheiui,msyh,simhei,simsun,dengxian,"
+                 "pingfangsc,hiraginosansgb,stheiti,heitisc,arialunicodems")
+
+_CJK_PROBE = "汉字测试"        # 探针：这几个字必须渲染出彼此不同的字形
+_warned_no_cjk = False
 
 
 class _Font:
@@ -344,28 +380,126 @@ class _Font:
         return getattr(self._f, name)
 
 
+def _img_bytes(surf):
+    """取 Surface 的原始字节。pygame 2.1.3 起 tostring 改名 tobytes，两版都兼容。"""
+    fn = getattr(pygame.image, "tobytes", None) or pygame.image.tostring
+    return fn(surf, "RGBA")
+
+
+def reset_font_cache():
+    """清空字体缓存 —— 重新 pygame.init() 之后必须调用。
+
+    为什么不能指望「取用时验活」：pygame.quit() 会释放底层的 TTF_Font，
+    缓存里的 Font 对象随即失效，再拿它 render 会**直接崩在 C 层**（段错误），
+    连 Python 异常都抓不住。所以只能在每次初始化之后主动清掉再重新探测。
+    """
+    _FONT_CACHE.clear()
+
+
+def font_covers_cjk(font):
+    """这个字体真的画得出汉字吗？
+
+    字体缺字时 pygame 会把所有汉字都画成同一个 .notdef 方框（豆腐块），
+    所以拿几个不同的汉字渲染出来比字节：只要有两张位图一模一样，就说明
+    字体里根本没有汉字字形，绝不能拿它当界面字体。
+    """
+    try:
+        digs = [_img_bytes(font.render(ch, True, (255, 255, 255)))
+                for ch in _CJK_PROBE]
+    except Exception:
+        return False
+    return len(set(digs)) == len(digs)
+
+
+def _warn_no_cjk_font():
+    """只提示一次：一个中文字体都没找到时界面会是方框。"""
+    global _warned_no_cjk
+    if _warned_no_cjk:
+        return
+    _warned_no_cjk = True
+    print("[提示] 系统里没找到含汉字字形的字体，界面中文会显示成方框。\n"
+          "       Linux 装一个即可： sudo apt install fonts-noto-cjk",
+          file=sys.stderr)
+
+
 def get_font(size, bold=False):
-    """按候选路径找中文字体，找不到再退回默认字体。结果缓存。"""
+    """找一个真的能显示汉字的字体；全失败则退回默认字体并给出提示。"""
     key = (size, bold)
     f = _FONT_CACHE.get(key)
     if f is not None:
         return f
+
     raw = None
-    order = _FONT_PATHS if not bold else (_FONT_PATHS[1],) + _FONT_PATHS
-    for p in order:
-        if os.path.exists(p):
-            try:
-                raw = pygame.font.Font(p, size)
-                break
-            except Exception:
-                raw = None
+    for p in FONT_CANDIDATES:                         # ① 平台常见路径
+        if not os.path.exists(p):
+            continue
+        try:
+            cand = pygame.font.Font(p, size)
+        except Exception:
+            continue
+        cand.set_bold(bold)
+        if font_covers_cjk(cand):
+            raw = cand
+            break
+
+    if raw is None:                                   # ② fontconfig 按族名
+        try:
+            path = pygame.font.match_font(FONT_FAMILIES, bold=bold)
+            if path:
+                cand = pygame.font.Font(path, size)
+                cand.set_bold(bold)
+                if font_covers_cjk(cand):
+                    raw = cand
+        except Exception:
+            pass
+
+    if raw is None:                                   # ③ SysFont 最后兜底
+        try:
+            cand = pygame.font.SysFont(FONT_FAMILIES, size, bold=bold)
+            if font_covers_cjk(cand):
+                raw = cand
+        except Exception:
+            pass
+
     if raw is None:
-        raw = pygame.font.SysFont(None, size)
-    if bold:
-        raw.set_bold(True)
+        # 一个汉字都画不出来的字体不能用，宁可退回 pygame 自带字体并明确提示。
+        _warn_no_cjk_font()
+        raw = pygame.font.Font(None, size)
+        raw.set_bold(bold)
+
     f = _Font(raw, key)
     _FONT_CACHE[key] = f
     return f
+
+
+def font_regression(bad_path):
+    """反事实自检：把候选全换成「没有汉字的字体」，get_font 必须识别出来。
+
+    返回 (bool, str)。旧写法「名字匹配成功就直接用」会让界面静默变成方框，
+    这条断言就是防止那种写法复活。
+    """
+    global FONT_FAMILIES, _warned_no_cjk
+    saved_cands = list(FONT_CANDIDATES)
+    saved_fams = FONT_FAMILIES
+    saved_cache = dict(_FONT_CACHE)
+    saved_warned = _warned_no_cjk
+    try:
+        FONT_CANDIDATES[:] = [bad_path]
+        FONT_FAMILIES = "dejavusans,arial,liberationsans"
+        _FONT_CACHE.clear()
+        # 这个场景注定找不到汉字字体，别刷出误导性的「你的系统没有中文字体」
+        _warned_no_cjk = True
+        got = get_font(24)
+        ref = pygame.font.Font(None, 24)
+        same = (_img_bytes(got.render("汉", True, (255, 255, 255)))
+                == _img_bytes(ref.render("汉", True, (255, 255, 255))))
+        return same, bad_path
+    finally:
+        FONT_CANDIDATES[:] = saved_cands
+        FONT_FAMILIES = saved_fams
+        _FONT_CACHE.clear()
+        _FONT_CACHE.update(saved_cache)
+        _warned_no_cjk = saved_warned
 
 
 _TEXT_CACHE = {}
@@ -1237,6 +1371,9 @@ for _i in range(1, 10):
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
+    if "--version" in argv:
+        print("sudoku %s" % __version__)
+        return 0
     diff = "easy"
     if "--diff" in argv:
         diff = argv[argv.index("--diff") + 1]
@@ -1254,6 +1391,9 @@ def main(argv=None):
     except Exception:
         pass
     pygame.init()
+
+    # 重新初始化后旧 Font 已失效，必须清缓存（不清会在 render 时段错误）
+    reset_font_cache()
     try:
         pygame.mixer.init()
     except Exception:

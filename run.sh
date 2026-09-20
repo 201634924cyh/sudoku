@@ -23,9 +23,13 @@ fi
 
 if ! "$PY" -c "import pygame" >/dev/null 2>&1; then
     echo "pygame is not installed, installing it now..."
-    if ! "$PY" -m pip install -r requirements.txt; then
+    # 主用腾讯云镜像，失败再退官方源
+    "$PY" -m pip install --disable-pip-version-check -i https://mirrors.cloud.tencent.com/pypi/simple -r requirements.txt \
+        || "$PY" -m pip install --disable-pip-version-check -r requirements.txt
+    if ! "$PY" -c "import pygame" >/dev/null 2>&1; then
         echo "No official pygame wheel for this Python, trying pygame-ce..."
-        "$PY" -m pip install pygame-ce
+        "$PY" -m pip install --disable-pip-version-check -i https://mirrors.cloud.tencent.com/pypi/simple pygame-ce \
+            || "$PY" -m pip install --disable-pip-version-check pygame-ce
     fi
 fi
 
