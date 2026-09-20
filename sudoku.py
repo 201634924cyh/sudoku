@@ -28,7 +28,7 @@ import sys
 
 import pygame
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 try:
     import numpy as _np
@@ -111,7 +111,35 @@ TOOL_BG      = (249, 248, 244)
 TOOL_ON      = (44, 104, 200)
 SHADOW       = (196, 189, 176)
 
-DIFFICULTIES = (("easy", "简单", 40), ("medium", "中等", 46), ("hard", "困难", 52))
+# ---------------- i18n: bilingual UI (v1.2) ----------------
+# 界面文案中英双语：默认中文，`--lang en` 切换英文。
+# 常量在模块加载时按 _LANG 求值，因此 --lang 在文件顶部立即解析。
+_LANG = "zh"
+
+
+def set_language(lang):
+    global _LANG
+    if lang in ("zh", "en"):
+        _LANG = lang
+
+
+def _t(zh, en):
+    return en if _LANG == "en" else zh
+
+
+def _bootstrap_lang():
+    argv = sys.argv[1:]
+    if "--lang" in argv:
+        i = argv.index("--lang")
+        if i + 1 < len(argv):
+            set_language(argv[i + 1])
+
+
+_bootstrap_lang()
+# ------------------------------------------------------------
+
+
+DIFFICULTIES = (("easy", _t("简单", "Easy"), 40), ("medium", _t("中等", "Medium"), 46), ("hard", _t("困难", "Hard"), 52))
 DIFF_NAME = {k: n for k, n, _ in DIFFICULTIES}
 DIFF_HOLES = {k: h for k, _, h in DIFFICULTIES}
 
@@ -1066,9 +1094,9 @@ class Game:
                              border_radius=26)
 
     def _draw_header(self, cv):
-        draw_text(cv, "数独", get_font(34, True), C_TEXT, (30, 34))
+        draw_text(cv, _t("数独", "Sudoku"), get_font(34, True), C_TEXT, (30, 34))
         draw_text(cv, "SUDOKU", get_font(14, True), C_TEXT_DIM, (104, 50))
-        draw_text(cv, "唯一解出题 · 题库实时生成", get_font(13), C_TEXT_DIM,
+        draw_text(cv, _t("唯一解出题 · 题库实时生成", "Unique-solution puzzles · live"), get_font(13), C_TEXT_DIM,
                   (LOGICAL_W - 30, 44), anchor="topright")
 
     # ---------------- 棋盘 ----------------
@@ -1202,11 +1230,11 @@ class Game:
         round_rect(cv, (245, 243, 237), rect, 12)
         round_rect(cv, CARD_EDGE, rect, 12, 1)
 
-        draw_text(cv, "用时", get_font(13), C_TEXT_DIM, (x + 16, y + 12))
+        draw_text(cv, _t("用时", "Time"), get_font(13), C_TEXT_DIM, (x + 16, y + 12))
         draw_text(cv, fmt_time(self.elapsed), get_font(28, True), C_TEXT, (x + 16, y + 30))
 
         rx = x + w - 16
-        draw_text(cv, "错误", get_font(13), C_TEXT_DIM, (rx, y + 12), anchor="topright")
+        draw_text(cv, _t("错误", "Errors"), get_font(13), C_TEXT_DIM, (rx, y + 12), anchor="topright")
         mcol = C_BAD if self.mistakes else C_TEXT
         draw_text(cv, str(self.mistakes), get_font(28, True), mcol, (rx, y + 30), anchor="topright")
 
@@ -1256,22 +1284,22 @@ class Game:
             round_rect(cv, bg, rect, 12)
             round_rect(cv, edge, rect, 12, 1)
             draw_text(cv, str(d), f_big, tcol, (rect.centerx, rect.centery - 4), anchor="center")
-            sub = "笔记" if note else "剩 %d" % max(0, left)
+            sub = _t("笔记", "Notes") if note else _t("剩 %d", "Left %d") % max(0, left)
             draw_text(cv, sub, f_sm, dead if left <= 0 else (C_ACCENT if note else C_TEXT_DIM),
                       (rect.centerx, rect.bottom - 8), anchor="midbottom")
 
     def _tool_style(self, name):
         if name == "note":
             on = self.note_mode
-            return ("笔记  N", TOOL_ON if on else TOOL_BG,
+            return (_t("笔记  N", "Notes  N"), TOOL_ON if on else TOOL_BG,
                     (255, 255, 255) if on else C_TEXT,
                     TOOL_ON if on else KEY_EDGE)
         if name == "undo":
             dis = not self.history
-            return ("撤销  U", TOOL_BG, C_TEXT_DIM if dis else C_TEXT, KEY_EDGE)
+            return (_t("撤销  U", "Undo  U"), TOOL_BG, C_TEXT_DIM if dis else C_TEXT, KEY_EDGE)
         if name == "hint":
-            return ("提示  H", TOOL_BG, C_TEXT, KEY_EDGE)
-        return ("新游戏  R", C_ACCENT, (255, 255, 255), C_ACCENT_D)
+            return (_t("提示  H", "Hint  H"), TOOL_BG, C_TEXT, KEY_EDGE)
+        return (_t("新游戏  R", "New  R"), C_ACCENT, (255, 255, 255), C_ACCENT_D)
 
     def _draw_tools(self, cv):
         f = get_font(16, True)
@@ -1299,14 +1327,14 @@ class Game:
         pygame.draw.lines(cv, C_GOLD, False,
                           [(cx - 15, PANEL_Y + 74), (cx - 4, PANEL_Y + 85), (cx + 17, PANEL_Y + 62)], 5)
 
-        draw_text(cv, "完成！", get_font(32, True), C_TEXT, (cx, PANEL_Y + 132), anchor="center")
-        draw_text(cv, "%s 难度 · 唯一解" % DIFF_NAME[self.diff], get_font(14),
+        draw_text(cv, _t("完成！", "Completed!"), get_font(32, True), C_TEXT, (cx, PANEL_Y + 132), anchor="center")
+        draw_text(cv, _t("%s 难度 · 唯一解", "%s · Unique solution") % DIFF_NAME[self.diff], get_font(14),
                   C_TEXT_DIM, (cx, PANEL_Y + 166), anchor="center")
 
-        rows = (("用时", fmt_time(self.elapsed)),
-                ("错误", "%d 次" % self.mistakes),
-                ("提示", "%d 次" % self.hints),
-                ("空格", "%d 个" % self.to_fill))
+        rows = ((_t("用时", "Time"), fmt_time(self.elapsed)),
+                (_t("错误", "Errors"), _t("%d 次", "%d times") % self.mistakes),
+                (_t("提示", "Hints"), _t("%d 次", "%d times") % self.hints),
+                (_t("空格", "Empty"), _t("%d 个", "%d left") % self.to_fill))
         y = PANEL_Y + 202
         for i, (k, v) in enumerate(rows):
             yy = y + i * 40
@@ -1322,7 +1350,7 @@ class Game:
             if name == "again":
                 bg = C_ACCENT_D if hover else C_ACCENT
                 round_rect(cv, bg, rect, 12)
-                draw_text(cv, "再来一局", get_font(20, True), (255, 255, 255),
+                draw_text(cv, _t("再来一局", "Play Again"), get_font(20, True), (255, 255, 255),
                           rect.center, anchor="center")
             else:
                 key = name[5:]
@@ -1332,13 +1360,13 @@ class Game:
                 round_rect(cv, C_ACCENT if on else KEY_EDGE, rect, 10, 1)
                 draw_text(cv, DIFF_NAME[key], get_font(15, True), C_TEXT,
                           rect.center, anchor="center")
-        draw_text(cv, "按 R 重开 · 方向键继续查看盘面", get_font(13), C_TEXT_DIM,
+        draw_text(cv, _t("按 R 重开 · 方向键继续查看盘面", "R restart · arrows browse"), get_font(13), C_TEXT_DIM,
                   (cx, PANEL_Y + PANEL_H - 24), anchor="center")
 
     def _draw_footer(self, cv):
-        msg = "点击格子 · 按 1-9 填数 · N 笔记 · U 撤销 · H 提示 · R 新局 · 右键擦除"
+        msg = _t("点击格子 · 按 1-9 填数 · N 笔记 · U 撤销 · H 提示 · R 新局 · 右键擦除", "Click cell · 1-9 fill · N notes · U undo · H hint · R new · RMB erase")
         if self.state == self.STATE_WON:
-            msg = "恭喜通关！用时 %s · 错误 %d 次 · 提示 %d 次" % (
+            msg = _t("恭喜通关！用时 %s · 错误 %d 次 · 提示 %d 次", "Puzzle solved! Time %s · Errors %d · Hints %d") % (
                 fmt_time(self.elapsed), self.mistakes, self.hints)
         draw_text(cv, msg, get_font(15), C_TEXT_DIM,
                   (LOGICAL_W // 2, BOARD_CARD.bottom + 26), anchor="center")
@@ -1398,7 +1426,7 @@ def main(argv=None):
         pygame.mixer.init()
     except Exception:
         pass
-    pygame.display.set_caption("数独 Sudoku")
+    pygame.display.set_caption(_t("数独 Sudoku", "Sudoku"))
     window = pygame.display.set_mode((LOGICAL_W, LOGICAL_H), pygame.RESIZABLE)
 
     game = Game(window, rng=random.Random(seed))

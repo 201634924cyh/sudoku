@@ -5,7 +5,7 @@
 ![Language](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![Dependency](https://img.shields.io/badge/dependency-pygame-2C8E4E)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.1-blue)
+![Version](https://img.shields.io/badge/version-1.2-blue)
 ![Selftest](https://img.shields.io/badge/selftest-918%20passed-brightgreen)
 
 ## 预览
@@ -23,6 +23,15 @@
 界面中文在 Windows / macOS / Linux 上都能正常显示。程序按「平台常见字体路径 → fontconfig 族名 → SysFont」逐级探测，**每一级都做字形校验**（渲染几个不同汉字比对位图），只有真的画得出汉字才会采用。
 
 > 这一步不是多余的：pygame 的 `match_font` 会给出「名字沾边、其实没有汉字」的字体（实测 `dejavusans`、`arial` 都会命中 Arial Narrow），一旦采用，界面就会静默变成一屏方框。真的找不到中文字体时，程序会明确提示装字体（`sudo apt install fonts-noto-cjk`），而不是假装正常。自检里配了正反两条断言防止回归。
+
+## 语言切换
+
+界面默认中文，`--lang en` 切换到英文界面：
+
+```bash
+python sudoku.py            # 中文（默认）
+python sudoku.py --lang en  # 英文
+```
 
 ## 快速开始
 
